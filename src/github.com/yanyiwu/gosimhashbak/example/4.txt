@@ -1,0 +1,160 @@
+     
+ 面向Cache一致性片上网络的切片气泡流控 [基金项目：教育部博士点基金项目（20134307120028）]#
+马胜[作者简介：马胜（1986年12月出生），男，助理研究员，主要研究计算机体系结构. E-mail: masheng@nudt.edu.cn]*
+（国防科技大学计算机学院）
+2.02.02.02.02.02.02.02.02.0School of Computer, National University of Defense Technology国防科技大学计算机学院4100731887400442118874004421湖南长沙国防科技大学计算机学院微电子所masheng@nudt.edu.cn马胜（1986年12月出生），男，助理研究员，主要研究计算机体系结构马胜MA Sheng马胜教育部博士点基金项目（20134307120028）2.02.02.02.02.02.02.02.02.02.02.02.01*|*论文集*|*W. Dally, B. Towles, Route packets, not wires: on-chip interconnection networks, DAC2001:684-689.<CR>2*|*论文集*|*S. Damaraju, et al. A 22 nm IA multi-CPU and GPU system-on-chip, ISSCC2012:56-57. <CR>3*|*技术报告*|*Intel, Intel Xeon Phi coprocessor - datasheet, Technical Report, 2013. <CR>4*|*期刊*|*J. A. Kahle, M. N. Day, H. P. Hofstee, et al. Introduction to the cell multiprocessor[J]. IBM Journal of Research and Development. 2005,49(4/5):589-604.<CR>5*|*期刊*|*N.R. Adiga, M. A. Blumrich, D. Chen, et al. Blue Gene/L torus interconnection network[J]. IBM Journal of Research and Development .2005,49(2/3):265-276.<CR>6*|*期刊*|*W. Dally, Virtual-channel flow control, IEEE Transactions on Parallel and Distributed Systems[J].1992,3(2):194-205.<CR>7*|*论文集*|*C. Carrion, et al. A flow control mechanism to avoid message deadlock in k-ary n-cube networks, HiPC1997:322-329.<CR>8*|*论文集*|*L. Chen, et al. Critical bubble scheme: an efficient implementation of globally aware network flow control, IPDPS2011:592-603.<CR>9*|*论文集*|*C. Bienia, et al. The PARSEC benchmark suite: characterization and architectural implications, PACT2008:72-81.<CR>10*|*论文集*|*N. Jiang, et al. A detailed and flexible cycle-accurate network-on-chip simulator, ISPASS2013:86-96.<CR>11*|*论文集*|*L.-S. Peh, et al. A delay model and speculative architecture for pipelined routers, HPCA2001:255-266.<CR>12*|*论文集*|*N. Neelakantam, et al. FeS2: a full-system execution-driven simulator for x86, ASPLOS 2008,Poster. 面向Cache一致性片上网络的切片气泡流控|The Flit Bubble Flow Control for Cache Coherent NoCs|教育部博士点基金项目（20134307120028）*|1|马胜|MA Sheng|国防科技大学计算机学院|School of Computer, National University of Defense Technology|马胜（1986年12月出生），男，助理研究员，主要研究计算机体系结构|湖南长沙国防科技大学计算机学院微电子所|410073|masheng@nudt.edu.cn|18874004421|18874004421
+摘要：现有torus网络流控机制不能高效传输混合长度的报文，一种传统设计需使用两条虚通道，增加了资源开销，降低了频率。一些优化设计需将短报文视为长报文，降低了缓存利用率和性能。针对这些局限，本文提出了切片气泡流控理论，它通过在环网上维持一个空闲缓存单元避免死锁，只使用一条虚通道，支持更高的频率，同时无需将短报文视为长报文，提升了缓存利用率。基于该理论，本文进一步给出了两种实现，性能都显著优于现有设计。
+关键词：Cache一致性协议 片上网络 切片气泡流控
+中图分类号：TP338
+
+ The Flit Bubble Flow Control for Cache Coherent NoCs 
+MA Sheng
+(School of Computer, National University of Defense Technology)
+
+Abstract: Existing designs for torus networks do not efficiently handle variable-size packets. For deadlock free operations, a design uses two VCs, which negatively affects the router frequency. Some optimizations use one VC. Yet, they regard all packets as maximum-length packets, inefficiently utilizing the precious buffers. We propose flit bubble flow control (FBFC), which maintains one free flit-size buffer slot to avoid deadlock. FBFC uses one VC, and does not treat short packets as long ones. It achieves both high frequency and efficient buffer utilization. FBFC performs better than existing designs.
+Keywords: Cache coherent protocol, Networks-on-Chip, Flit-bubble flow control
+
+
+
+0引言
+提高众核处理器一致性协议的效率需要基于通信特性优化片上网络。片上网络应采用高带宽、低延迟的拓扑结构，torus网络是一种较好的选择，它的回绕链路有效地将片上丰富的连线转化成带宽，同时降低了网络跳数和延迟，其节点对称性也有利于负载均衡[1]，因此，许多处理器和巨型机都采用了torus网络[2,3,4,5]。
+但是torus网络回绕链路带来的循环依赖增加了死锁避免的复杂性。高效死锁避免机制应在较低开销下支持较高的性能，应尽量使用较少的虚通道[6]，因为更多的虚通道不仅增加了资源开销，也降低了路由器频率。同时，高效死锁避免机制应尽量提升缓存利用率[1]。然而现有设计不能满足这些目标。
+一种传统设计使用两条虚通道来移除链路循环依赖[1]；两条虚通道增大了分配器规模，降低了路由器频率。虚切通网络中的一些优化设计[7,8]通过禁止报文占用环网上的最后一个报文大小的缓存来避免死锁，它们只使用一条虚通道。然而，当存在不同长度的报文时，它们需将每个报文都视为最长报文[5]，严重降低了缓存利用率和性能。
+         
+(a) 目录MOESI协议                                     (b) AMD Hammer协议
+(a) MOESI directory protocol                                (b) AMD’s Hammer protocol
+图1 PARSEC测试集报文长度分布
+Fig.1 The packet length distribution of PAESEC benchmarks
+
+Cache一致性片上网络传输两种长度的消息：短控制消息和长数据消息。基于典型的128位切片宽度，短消息只有1个切片，长消息有5个切片，携带一个64字节的cache行。图1给出了PARSEC测试集[9]在两种cache一致性协议下的报文长度分布。这两种协议都采用4个虚拟网络（Virtual Network, VN）避免协议层死锁[1]，每种协议有2个虚拟网络传输混合长度的报文，另外2个虚拟网络只传输短报文。目录MOESI协议的VN0和AMD Hammer协议的VN2和VN3中的短报文比例高于90%，此时将短报文视为长报文严重制约了缓存利用率，带来了大量性能损失，因此迫切需要改进torus网络的死锁避免机制。
+本文提出了一种新颖死锁避免理论：切片气泡流控（Flit Bubble Flow Control, FBFC），FBFC通过在虫孔交换环网上维持一个空闲缓存避免死锁。FBFC只使用一条虚通道，提高了路由器频率，FBFC不需要将短报文视为长报文，提升了缓存利用率。基于切片气泡理论，本文给出了两种实现，实验结果表明，它们的性能显著优于现有设计，FBFC的路由器频率比dateline[1]高30%；在合成流量测试中，FBFC的性能比本地气泡策略[7]和关键气泡策略[8]分别高92.8%和34.2%；在PARSEC测试中，FBFC的性能比本地气泡策略高13.0%。FBFC的功耗效率也优于现有设计。
+1相关工作的局限
+本节分析torus网络现有死锁避免机制的局限，避免torus网络死锁的核心是消除环网上的死锁。
+1.1Dateline
+如图2所示，dateline设计使用VC0i和VC1i两条虚通道来避免死锁[1]。为消除循环依赖，dateline要求报文在越过“dateline”后使用VC1i。Dateline需要两条虚通道，增大了分配器规模，降低了路由器频率。
+
+
+图2 Dateline设计使用两条虚通道避免死锁
+Fig.2 Dateline uses two VCs to avoid deadlock
+
+1.2本地气泡策略（LBS）
+气泡流控是面向虚切通torus网络的一种死锁避免理论[7]，它通过禁止占用环网上最后一个报文大小的缓存资源（报文气泡）避免死锁，该机制只使用一条虚通道。理论上，环网上任何位置存在一个空闲气泡就可避免死锁。然而由于很难获得全局网络状态，现有设计采用本地策略（Localized Bubble Scheme, LBS）[7]，只有在接收虚通道中的空闲缓存数大于等于两个报文大小时才允许注入。如图3所示，报文P0、P1和P2在等待注入，理论上这些报文都可注入，因为在它们注入之后VC1仍剩余一个空闲气泡。但本地策略只允许P0注入，因为只有VC1有两个报文大小的空闲缓存。
+
+图3 LBS要求每条虚通道至少能容纳两个报文
+Fig.3 LBS requires each VC to have at least two packet-size bubbles.
+
+1.3关键气泡策略（LBS）
+关键气泡策略（Critical Bubble Scheme, CBS）是气泡流控理论的另一种实现[8]。CBS在每个环网上将至少一个报文气泡标记为关键气泡，报文只有在不会占用关键气泡时才允许注入。图4的VC2上的气泡被标记为关键气泡，P2可以注入，P1的注入会占用关键气泡，因此P1不能注入。限制关键气泡只能被已处于环网中的报文占用可以维持一个空闲的报文气泡。报文发送会移动关键气泡，如果P3发送到VC2中，关键气泡会移动到VC1中。
+
+图4 CBS要求每条虚通道能容纳一个报文
+Fig.4 CBS requires each VC to have at least one packet-size bubble.
+
+1.4混合长度报文传输
+BlueGene/L设计者发现气泡流控在处理变长报文时会出现死锁，这是因为短报文会切分气泡[4]。图5有两种大小的报文：单切片报文和两切片报文。时钟周期0时，一个完整的报文气泡位于VC2中，单切片报文P0在时钟周期1发送到VC2中，将一个完整气泡切分成两部分，分别位于VC1和VC2中。虚切通流控要求报文发送时下游虚通道拥有能容纳整个报文的缓存，此时VC2的空闲缓存小于P1的长度，P1不能发送，出现死锁。为解决这个问题，BlueGene/L将所有报文都视为最长报文，此时不存在气泡切分[4]。但这种设计在大部分报文是短报文的cache一致性片上网络中会显著降低缓存利用率。
+
+图5 LBS在处理混合长度报文时面临的死锁
+Fig.5 LBS has deadlock when delivering variable-sized packets.
+
+2切片气泡流控机制
+本节首先证明切片气泡流控理论的无死锁特性，然后给出两种具体实现。
+2.1理论描述
+虫孔交换网络的死锁避免只需维持切片大小的空闲缓存，这是因为虫孔交换网络是以切片为粒度传输报文的。图6的时钟周期0时，VC2有一个空闲缓存单元。P0在时钟周期1被发送，给VC1创造了一个空闲缓存单元。类似的，P3的头切片在时钟周期2发送至VC1，给VC0创造了一个空闲缓存单元。这个空闲缓存单元不停循环，使所有切片都能转发，因此不存在死锁。
+
+图6 虫孔交换网络中的报文路由实例
+Fig.6 A packet routing example in wormhole networks.
+
+本文提出如下理论。
+定理：如果报文注入在虫孔交换环网上维持一个空闲缓存单元，则网络没有死锁。
+证明：假设环网中唯一的空闲缓存单元位于虚通道VCi+1中，其它虚通道都被完全占用。记VCi+1的上游虚通道为VCi，考查处于VCi头部的切片f，有两种情况：
+1）f是头切片。如果f已到达目标节点，则f可以排出。如果f需发送到VCi+1中，则考查最近使用VCi+1的报文Pk，有两种情况：
+1.1）Pk是从VCi发送到VCi+1的。由于此时另一个报文的头切片已处于VCi头部，Pk的尾切片一定已进入VCi+1，虫孔交换允许f发送到VCi+1中。
+1.2）Pk是注入到VCi+1中的。此时Pk的尾切片一定已进入VCi+1。否则，其尾切片会占用唯一的空闲缓存单元，这违反了报文注入应在环网中维持一个空闲缓存单元的条件。因此，f可以发送。
+2）如果f是体切片或尾切片，它可以排出或发送到VCi+1。
+在所有情况下，至少有一个切片可以移动，因此网络没有死锁。                        ▇
+上述理论被称为切片气泡流控（Flit Bubble Flow Control, FBFC），它通过在环网中维持一个空闲缓存单元（切片气泡）避免死锁。维序路由消除了不同维度间的循环依赖，将维序路由与FBFC结合可以避免torus网络的死锁。FBFC的气泡是切片大小的，不存在气泡切分的情况，与LBS和CBS相比，FBFC不需要将每个报文视为最长报文，因此适合于cache一致性片上网络。FBFC只使用一条虚通道，路由器频率高于dateline。下面给出满足FBFC的两种实现。
+2.2本地切片气泡策略（FBFC-L）
+实现切片气泡流控的关键是保证注入过程在环网中维持一个空闲缓存单元。由于收集全局缓存占用状态比较复杂，本节给出一种本地实现策略：本地切片气泡（FBFC-Localized, FBFC-L），规则如下：（1）对于在同一维度内传输的报文，只要下游虚通道有1个空闲缓存单元，则允许报文发送，这与虫孔交换机制相同。（2）FBFC-L对转维报文的处理与注入报文相同，对于需要注入或转维的报文，只有当下游虚通道的空闲缓存数多于报文切片数时，才允许报文注入或转维。该要求保证报文注入后，下游虚通道至少剩余一个空闲缓存单元。
+图7给出了一个实例，P2、P3和P4等待注入，VC2和VC3的空闲缓存数分别是2个和4个，它们比P3和P4的切片数大1，因此P3和P4可以注入。VC1只有一个空闲缓存单元，P2不能注入。然而，虫孔交换允许VC1的空闲缓存用于P1的发送。FBFC-L要求虚通道深度至少比最长报文切片数大1。
+
+图7 FBFC-L的报文路由实例
+Fig.7 A packet routing example in FBFC-L networks.
+
+2.3关键切片气泡策略（FBFC-C）
+为进一步降低对虚通道深度的需求，关键切片气泡策略（FBFC-Critical, FBFC-C）将环网中至少一个缓存单元标记为关键缓存单元，并限制关键缓存单元只能被同一维度内传输的报文使用，规则如下：（1）对于在同一维度内传输的报文，只要下游虚通道有1个空闲缓存单元，无论该单元是关键缓存单元或普通缓存单元，都允许报文发送。（2）对于需要注入或转维的报文，只有当下游虚通道的空闲普通缓存数大于等于报文切片数时，才能允许报文注入或转维。报文注入不能占用关键缓存单元，从而保证始终存在一个空闲缓存单元。
+图8给出了一个实例。关键缓存单元在时钟周期0处于VC1上，VC2和VC3的空闲普通缓存数分别等于P3和P4的切片数，因此P3和P4可以注入，此时关键缓存单元没被占用，环网中至少存在一个空闲缓存单元。VC1的唯一空闲缓存是关键缓存，P2不能注入。但是该关键缓存单元允许P1的头切片发送到VC1。此时，关键缓存单元被移至VC0中。FBFC-C要求虚通道深度至少等于最长报文的切片数，比FBFC-L少1个缓存单元。
+
+图8 FBFC-C的报文路由实例
+Fig.8 A packet routing example in FBFC-C networks.
+
+3路由器微结构
+图9左侧给出了传统虫孔交换路由器的微结构，主要模块包括输入单元（input units）、路由计算（RC）、虚通道分配器（VA）、交叉开关分配器（SA）、交叉开关（crossbar）和输出单元（output units）[10, 11]。输出单元记录下游虚通道的状态，其中input_vc记录下游虚通道被分配的输入虚通道，idle记录是否已将尾切片发送至下游虚通道，credits记录下游虚通道信元数。
+
+图9 FBFC路由器微结构
+Fig.9 The micro-architecture of FBFC routers.
+
+FBFC路由器需要修改输出单元，如图9右上侧所示，为支持一致性协议双峰分布的报文长度，FBFC-L路由器使用injs和injl寄存器记录是否允许短报文和长报文的注入。短报文和长报文分别包含1个和5个切片，它们的注入分别要求下游虚通道至少有2个和6个空闲缓存。图9中描述了相应的逻辑，这些逻辑被预计算，不影响关键路径。
+图9右下侧给出了FBFC-C路由器的输出单元，它还需要一个寄存器（CBs）记录关键气泡数目。injs和injl的计算逻辑为：只有当下游虚通道的普通缓存数（credits−CBs）不小于切片数时，才允许报文注入。当切片需占用下游虚通道的关键气泡时，输出单元置位mark_cb信号，通知上游路由器将新释放的缓存单元标记为关键气泡，这些逻辑也不在关键路径上。
+4实验方法
+本文修改Booksim模拟器[10]描述网络结构，实验对FBFC-L、FBFC-C、dateline、LBS和CBS进行比较，使用了合成流量模式和真实应用程序。合成流量模式中包含80%的单切片报文和20%的5切片报文。每个虚拟网络配置10个缓存单元，CBS和FBFC-C在环网上设置了一个关键气泡，CBS将5个缓存单元标记为一个报文大小的关键气泡，FBFC-C将1个缓存单元标记为一个切片大小的关键气泡。
+实验使用两个模拟器评估全系统性能：FeS2[12]模拟x86计算平台，Booksim模拟FeS2产生的报文在片上网络中的传输。实验模拟了一个16核CMP平台，cache行包括64字节，切片大小是16字节，长报文和短报文分别为5个和1个切片。表1给出了全系统模拟配置参数。实验评估使用PARSEC测试集[9]，性能指标是程序运行时间。
+
+
+
+表1 全系统模拟参数
+Tab.1 Full system simulation configuration.
+参数名	参数值
+核数	16
+一级cache（数据和指令）	私有，4路组相连，32KB
+二级cache	私有，8路组相连，512KB
+一致性协议	分布式目录MOESI协议
+网络拓扑	4×4 torus网络，4个虚拟网络，每个虚拟网络1条虚通道
+
+虚通道分配器（VA）和交叉开关分配器（SA）的延迟决定了路由器频率[12]。Dateline使用2条虚通道，增大了分配器规模和关键路径延迟。表2使用一个与工艺无关的模型[12]评测延迟，当配置4个虚拟网络时，dateline的SA延迟比气泡设计约高30%。
+
+表2 关键路径延迟（单位：FO4）
+Tab.2 The delay of critical path (in FO4). 
+	气泡设计	Dateline	增量
+1VN	VA	10.0	13.8	38%
+	SA	8.5	13.3	57%
+2VNs	SA	13.3	18.1	36%
+3VNs	SA	16.1	20.9	30%
+4VNs	SA	18.1	22.9	27%
+
+5性能评测
+本节评估了设计在合成流量模式和PARSEC测试集下的性能。
+5.1合成流量模式性能
+图10给出了合成流量模式的性能。FBFC-C和FBFC-L的性能基本相近，FBFC的高缓存利用率使得其性能显著优于LBS和CBS，与LBS和CBS相比，FBFC-C的平均性能提升分别是92.8%和34.2%。CBS的报文注入需要较少的缓存，因此CBS相对LBS获得了45.7%的平均性能提升，最大性能提升是transpose中的100%。Transpose模式的许多报文从同一行发送到同一列，它们在相同路由器上转维，加剧了拥塞，CBS较低的缓存需求能提升性能。图10中dateline的性能与FBFC-C相当，但是图10没有考虑路由器频率，如表2所示，dateline的频率比FBFC低30%，导致其实际性能比FBFC低27%以上。
+
+      
+(a) Uniform random                                  (b) Bit rotation
+      
+(c) Transpose                                  (d) Hotspot
+图10 合成流量模式的性能
+Fig.10 The performance of synthetic traffic patterns.
+
+5.2PARSEC测试集性能
+图11给出了各种设计在PARSEC测试集下相对于LBS的加速比。FBFC能支持更高的网络吞吐率，但是全系统性能取决于程序产生的负载和流量模式，具有较高网络负载和较多猝发通信的程序能从FBFC中获得性能提升。不同设计在blackscholes、fluidanimate和swaptions上性能相当，这些程序计算过程的栅栏同步较少，它们的工作集可以放入二级cache，导致网络负载较低，网络层优化几乎不影响它们的性能。
+
+
+图11 PARSEC测试集的全系统加速比
+Fig.11 The full system speedups of PARSEC benchmarks.
+
+但是网络层优化能提升其它程序的性能，CBS和FBFC相对于LBS获得了性能提升，FBFC在canneal上的性能提升最大，为22.7%。原因有两个：第一，这些程序的网络负载较重，包含一些猝发通信，支持较高网络吞吐率的设计能带来性能提升。第二，VN0和VN2传输了70.8%的网络负载，FBFC高效传输混合长度报文能给这两个拥塞的虚拟网络带来性能提升。在所有程序下，FBFC相对于LBS的平均性能提升是13.0%。
+6结论
+本文提出了切片气泡流控（FBFC）理论，FBFC通过在环网上维持一个空闲缓存单元避免死锁。FBFC只使用一条虚通道，路由器频率比dateline高30%。FBFC无需将短报文视为长报文，提高了缓存利用率。基于FBFC理论，本文给出了两种实现。在合成流量模式下，FBFC使用CBS的一半缓存时能获得与其类似的性能。在PARSEC测试集中，FBFC相对于LBS的平均性能提升是13.0%，最大性能提升是22.7%。FBFC在硬件开销方面也具有优势。
+
+
+
+[参考文献] (References)
+[1] W. Dally, B. Towles, Route packets, not wires: on-chip interconnection networks, DAC2001:684-689.
+[2] S. Damaraju, et al. A 22 nm IA multi-CPU and GPU system-on-chip, ISSCC2012:56-57. 
+[3] Intel, Intel Xeon Phi coprocessor - datasheet, Technical Report, 2013. 
+[4] J. A. Kahle, M. N. Day, H. P. Hofstee, et al. Introduction to the cell multiprocessor[J]. IBM Journal of Research and Development. 2005,49(4/5):589-604.
+[5] N.R. Adiga, M. A. Blumrich, D. Chen, et al. Blue Gene/L torus interconnection network[J]. IBM Journal of Research and Development .2005,49(2/3):265-276.
+[6] W. Dally, Virtual-channel flow control, IEEE Transactions on Parallel and Distributed Systems[J].1992,3(2):194-205.
+[7] C. Carrion, et al. A flow control mechanism to avoid message deadlock in k-ary n-cube networks, HiPC1997:322-329.
+[8] L. Chen, et al. Critical bubble scheme: an efficient implementation of globally aware network flow control, IPDPS2011:592-603.
+[9] C. Bienia, et al. The PARSEC benchmark suite: characterization and architectural implications, PACT2008:72-81.
+[10] N. Jiang, et al. A detailed and flexible cycle-accurate network-on-chip simulator, ISPASS2013:86-96.
+[11] L.-S. Peh, et al. A delay model and speculative architecture for pipelined routers, HPCA2001:255-266.
+[12] N. Neelakantam, et al. FeS2: a full-system execution-driven simulator for x86, ASPLOS 2008,Poster. 
